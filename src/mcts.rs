@@ -37,9 +37,9 @@ impl Node {
         if self.visits == 0 {
             return f64::INFINITY;
         }
-        let exploitation = self.wins / self.visits as f64;
+        let exploitation = self.wins / f64::from(self.visits);
         let exploration_term =
-            exploration * ((parent_visits as f64).ln() / self.visits as f64).sqrt();
+            exploration * (f64::from(parent_visits).ln() / f64::from(self.visits)).sqrt();
         exploitation + exploration_term
     }
 }

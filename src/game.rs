@@ -34,7 +34,7 @@ impl fmt::Display for Cell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Cell::Empty => write!(f, "."),
-            Cell::Occupied(p) => write!(f, "{}", p),
+            Cell::Occupied(p) => write!(f, "{p}"),
         }
     }
 }
@@ -119,12 +119,11 @@ impl TicTacToe {
 
         for line in WIN_LINES {
             let cells: Vec<Cell> = line.iter().map(|&i| self.board[i]).collect();
-            if let Cell::Occupied(player) = cells[0] {
-                if cells.iter().all(|&c| c == Cell::Occupied(player)) {
+            if let Cell::Occupied(player) = cells[0]
+                && cells.iter().all(|&c| c == Cell::Occupied(player)) {
                     self.result = GameResult::Win(player);
                     return;
                 }
-            }
         }
 
         if self.board.iter().all(|&c| c != Cell::Empty) {

@@ -1,3 +1,5 @@
+#![warn(clippy::all, clippy::pedantic)]
+
 mod game;
 mod mcts;
 
@@ -21,8 +23,7 @@ fn main() {
     let mut agent = MCTSAgent::new(10000, 1.41);
 
     while !game.is_terminal() {
-        println!("{}", game);
-        println!();
+        println!("{game}\n");
 
         match game.current_player() {
             Player::X => {
@@ -32,32 +33,25 @@ fn main() {
                 let mut input = String::new();
                 io::stdin().read_line(&mut input).unwrap();
 
-                match input.trim().parse::<usize>() {
-                    Ok(pos) => {
-                        if let Err(e) = game.make_move(pos) {
-                            println!("Invalid move: {}", e);
-                            continue;
-                        }
+                if let Ok(pos) = input.trim().parse::<usize>() {
+                    if let Err(e) = game.make_move(pos) {
+                        println!("Invalid move: {e}");
                     }
-                    Err(_) => {
-                        println!("Please enter a number 0-8");
-                        continue;
-                    }
+                } else {
+                    println!("Please enter a number 0-8");
                 }
             }
             Player::O => {
                 println!("MCTS is thinking...");
                 if let Some(action) = agent.choose_move(&game) {
-                    println!("MCTS plays: {}", action);
+                    println!("MCTS plays: {action}");
                     game.make_move(action).unwrap();
                 }
             }
         }
     }
 
-    println!("\nFinal board:");
-    println!("{}", game);
-    println!();
+    println!("\nFinal board:\n{game}\n");
 
     match game.result() {
         GameResult::Win(Player::X) => println!("You win!"),
