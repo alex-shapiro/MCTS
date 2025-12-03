@@ -43,14 +43,13 @@ impl fmt::Display for Cell {
 pub enum GameResult {
     Win(Player),
     Draw,
-    InProgress,
 }
 
 #[derive(Clone)]
 pub struct TicTacToe {
     board: [Cell; 9],
     current_player: Player,
-    result: GameResult,
+    result: Option<GameResult>,
 }
 
 impl TicTacToe {
@@ -58,7 +57,7 @@ impl TicTacToe {
         TicTacToe {
             board: [Cell::Empty; 9],
             current_player: Player::X,
-            result: GameResult::InProgress,
+            result: None,
         }
     }
 
@@ -66,12 +65,12 @@ impl TicTacToe {
         self.current_player
     }
 
-    pub fn result(&self) -> GameResult {
+    pub fn result(&self) -> Option<GameResult> {
         self.result
     }
 
     pub fn is_terminal(&self) -> bool {
-        self.result != GameResult::InProgress
+        self.result.is_some()
     }
 
     pub fn legal_moves(&self) -> Vec<usize> {
@@ -120,14 +119,15 @@ impl TicTacToe {
         for line in WIN_LINES {
             let cells: Vec<Cell> = line.iter().map(|&i| self.board[i]).collect();
             if let Cell::Occupied(player) = cells[0]
-                && cells.iter().all(|&c| c == Cell::Occupied(player)) {
-                    self.result = GameResult::Win(player);
-                    return;
-                }
+                && cells.iter().all(|&c| c == Cell::Occupied(player))
+            {
+                self.result = Some(GameResult::Win(player));
+                return;
+            }
         }
 
         if self.board.iter().all(|&c| c != Cell::Empty) {
-            self.result = GameResult::Draw;
+            self.result = Some(GameResult::Draw);
         }
     }
 }

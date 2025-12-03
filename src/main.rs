@@ -22,7 +22,7 @@ fn main() {
     let mut game = TicTacToe::new();
     let mut agent = MCTSAgent::new(10000, 1.41);
 
-    while !game.is_terminal() {
+    loop {
         println!("{game}\n");
 
         match game.current_player() {
@@ -49,14 +49,15 @@ fn main() {
                 }
             }
         }
-    }
 
-    println!("\nFinal board:\n{game}\n");
-
-    match game.result() {
-        GameResult::Win(Player::X) => println!("You win!"),
-        GameResult::Win(Player::O) => println!("MCTS wins!"),
-        GameResult::Draw => println!("It's a draw!"),
-        GameResult::InProgress => unreachable!(),
+        if let Some(result) = game.result() {
+            match result {
+                GameResult::Win(Player::X) => println!("You win!"),
+                GameResult::Win(Player::O) => println!("MCTS wins!"),
+                GameResult::Draw => println!("It's a draw!"),
+            }
+            println!("\nFinal board:\n{game}\n");
+            break;
+        }
     }
 }

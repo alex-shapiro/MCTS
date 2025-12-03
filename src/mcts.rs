@@ -1,63 +1,37 @@
 use crate::game::{GameResult, Player, TicTacToe};
 
-#[derive(Clone)]
-struct Node {
-    state: TicTacToe,
-    parent: Option<usize>,
-    children: Vec<usize>,
-    action: Option<usize>,
-    visits: u32,
-    wins: f64,
-    untried_actions: Vec<usize>,
+pub struct MCTSAgent {
+    mcts: Mcts,
+    iterations: u32,
 }
 
-impl Node {
-    fn new(state: TicTacToe, parent: Option<usize>, action: Option<usize>) -> Self {
-        let untried_actions = state.legal_moves();
-        Node {
-            state,
-            parent,
-            children: Vec::new(),
-            action,
-            visits: 0,
-            wins: 0.0,
-            untried_actions,
+impl MCTSAgent {
+    pub fn new(iterations: u32, exploration_constant: f64) -> Self {
+        MCTSAgent {
+            mcts: Mcts::new(exploration_constant),
+            iterations,
         }
     }
 
-    fn is_fully_expanded(&self) -> bool {
-        self.untried_actions.is_empty()
-    }
-
-    fn is_terminal(&self) -> bool {
-        self.state.is_terminal()
-    }
-
-    fn ucb1(&self, parent_visits: u32, exploration: f64) -> f64 {
-        if self.visits == 0 {
-            return f64::INFINITY;
-        }
-        let exploitation = self.wins / f64::from(self.visits);
-        let exploration_term =
-            exploration * (f64::from(parent_visits).ln() / f64::from(self.visits)).sqrt();
-        exploitation + exploration_term
+    pub fn choose_move(&mut self, state: &TicTacToe) -> Option<usize> {
+        self.mcts.search(state, self.iterations)
     }
 }
 
-pub struct Mcts {
+struct Mcts {
     nodes: Vec<Node>,
     exploration_constant: f64,
 }
 
 impl Mcts {
-    pub fn new(exploration_constant: f64) -> Self {
+    fn new(exploration_constant: f64) -> Self {
         Mcts {
             nodes: Vec::new(),
             exploration_constant,
         }
     }
 
-    pub fn search(&mut self, state: &TicTacToe, iterations: u32) -> Option<usize> {
+    fn search(&mut self, state: &TicTacToe, iterations: u32) -> Option<usize> {
         self.nodes.clear();
         self.nodes.push(Node::new(state.clone(), None, None));
 
@@ -73,11 +47,22 @@ impl Mcts {
         self.best_action(0)
     }
 
+    /// Select the first viable node
+    /// - terminal, OR
+    /// - not fully expanded; OR
+    /// - has no children
     fn select(&self, node_idx: usize) -> usize {
         let mut current = node_idx;
 
-        while !self.nodes[current].is_terminal() && self.nodes[current].is_fully_expanded() {
-            if self.nodes[current].children.is_empty() {
+        loop {
+            let node = &self.nodes[current];
+            if node.is_terminal() {
+                break;
+            }
+            if !node.is_fully_expanded() {
+                break;
+            }
+            if node.children.is_empty() {
                 break;
             }
             current = self.best_child(current);
@@ -122,7 +107,7 @@ impl Mcts {
         new_idx
     }
 
-    fn simulate(&self, node_idx: usize) -> GameResult {
+    fn simulate(&self, node_idx: usize) -> Option<GameResult> {
         let mut state = self.nodes[node_idx].state.clone();
 
         while !state.is_terminal() {
@@ -134,14 +119,14 @@ impl Mcts {
         state.result()
     }
 
-    fn backpropagate(&mut self, node_idx: usize, result: GameResult, root_player: Player) {
+    fn backpropagate(&mut self, node_idx: usize, result: Option<GameResult>, root_player: Player) {
         let mut current = Some(node_idx);
 
         while let Some(idx) = current {
             self.nodes[idx].visits += 1;
 
             let reward = match result {
-                GameResult::Win(winner) => {
+                Some(GameResult::Win(winner)) => {
                     let node_player = if idx == 0 {
                         root_player
                     } else {
@@ -149,14 +134,10 @@ impl Mcts {
                             .state
                             .current_player()
                     };
-                    if winner == node_player {
-                        1.0
-                    } else {
-                        0.0
-                    }
+                    if winner == node_player { 1.0 } else { 0.0 }
                 }
-                GameResult::Draw => 0.5,
-                GameResult::InProgress => 0.0,
+                Some(GameResult::Draw) => 0.5,
+                None => 0.0,
             };
 
             self.nodes[idx].wins += reward;
@@ -179,20 +160,46 @@ impl Mcts {
     }
 }
 
-pub struct MCTSAgent {
-    mcts: Mcts,
-    iterations: u32,
+#[derive(Clone)]
+struct Node {
+    state: TicTacToe,
+    parent: Option<usize>,
+    children: Vec<usize>,
+    action: Option<usize>,
+    visits: u32,
+    wins: f64,
+    untried_actions: Vec<usize>,
 }
 
-impl MCTSAgent {
-    pub fn new(iterations: u32, exploration_constant: f64) -> Self {
-        MCTSAgent {
-            mcts: Mcts::new(exploration_constant),
-            iterations,
+impl Node {
+    fn new(state: TicTacToe, parent: Option<usize>, action: Option<usize>) -> Self {
+        let untried_actions = state.legal_moves();
+        Node {
+            state,
+            parent,
+            children: Vec::new(),
+            action,
+            visits: 0,
+            wins: 0.0,
+            untried_actions,
         }
     }
 
-    pub fn choose_move(&mut self, state: &TicTacToe) -> Option<usize> {
-        self.mcts.search(state, self.iterations)
+    fn is_fully_expanded(&self) -> bool {
+        self.untried_actions.is_empty()
+    }
+
+    fn is_terminal(&self) -> bool {
+        self.state.is_terminal()
+    }
+
+    fn ucb1(&self, parent_visits: u32, exploration: f64) -> f64 {
+        if self.visits == 0 {
+            return f64::INFINITY;
+        }
+        let exploitation = self.wins / f64::from(self.visits);
+        let exploration_term =
+            exploration * (f64::from(parent_visits).ln() / f64::from(self.visits)).sqrt();
+        exploitation + exploration_term
     }
 }
