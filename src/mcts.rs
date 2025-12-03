@@ -44,14 +44,14 @@ impl Node {
     }
 }
 
-pub struct MCTS {
+pub struct Mcts {
     nodes: Vec<Node>,
     exploration_constant: f64,
 }
 
-impl MCTS {
+impl Mcts {
     pub fn new(exploration_constant: f64) -> Self {
-        MCTS {
+        Mcts {
             nodes: Vec::new(),
             exploration_constant,
         }
@@ -180,14 +180,14 @@ impl MCTS {
 }
 
 pub struct MCTSAgent {
-    mcts: MCTS,
+    mcts: Mcts,
     iterations: u32,
 }
 
 impl MCTSAgent {
     pub fn new(iterations: u32, exploration_constant: f64) -> Self {
         MCTSAgent {
-            mcts: MCTS::new(exploration_constant),
+            mcts: Mcts::new(exploration_constant),
             iterations,
         }
     }
