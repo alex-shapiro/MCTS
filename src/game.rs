@@ -1,4 +1,13 @@
-use std::fmt;
+use std::fmt::{self, Debug};
+
+pub type Action = usize;
+
+pub trait Game: Debug + Clone {
+    fn result(&self) -> Option<GameResult>;
+    fn allowed_actions(&self) -> Vec<Action>;
+    fn current_player(&self) -> Player;
+    fn step(&mut self, action: Action) -> Result<(), &'static str>;
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Player {
@@ -45,7 +54,7 @@ pub enum GameResult {
     Draw,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TicTacToe {
     board: [Cell; 9],
     current_player: Player,
@@ -53,55 +62,8 @@ pub struct TicTacToe {
 }
 
 impl TicTacToe {
-    pub fn new() -> Self {
-        TicTacToe {
-            board: [Cell::Empty; 9],
-            current_player: Player::X,
-            result: None,
-        }
-    }
-
-    pub fn current_player(&self) -> Player {
-        self.current_player
-    }
-
-    pub fn result(&self) -> Option<GameResult> {
-        self.result
-    }
-
     pub fn is_terminal(&self) -> bool {
         self.result.is_some()
-    }
-
-    pub fn legal_moves(&self) -> Vec<usize> {
-        if self.is_terminal() {
-            return Vec::new();
-        }
-        self.board
-            .iter()
-            .enumerate()
-            .filter(|(_, cell)| **cell == Cell::Empty)
-            .map(|(i, _)| i)
-            .collect()
-    }
-
-    pub fn make_move(&mut self, position: usize) -> Result<(), &'static str> {
-        if position >= 9 {
-            return Err("Position out of bounds");
-        }
-        if self.board[position] != Cell::Empty {
-            return Err("Cell already occupied");
-        }
-        if self.is_terminal() {
-            return Err("Game already finished");
-        }
-
-        self.board[position] = Cell::Occupied(self.current_player);
-        self.update_result();
-        if !self.is_terminal() {
-            self.current_player = self.current_player.opponent();
-        }
-        Ok(())
     }
 
     fn update_result(&mut self) {
@@ -134,7 +96,11 @@ impl TicTacToe {
 
 impl Default for TicTacToe {
     fn default() -> Self {
-        Self::new()
+        TicTacToe {
+            board: [Cell::Empty; 9],
+            current_player: Player::X,
+            result: None,
+        }
     }
 }
 
@@ -151,6 +117,45 @@ impl fmt::Display for TicTacToe {
                 writeln!(f)?;
             }
         }
+        Ok(())
+    }
+}
+
+impl Game for TicTacToe {
+    fn result(&self) -> Option<GameResult> {
+        self.result
+    }
+
+    fn allowed_actions(&self) -> Vec<Action> {
+        if self.is_terminal() {
+            return Vec::new();
+        }
+        self.board
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| **cell == Cell::Empty)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    fn current_player(&self) -> Player {
+        self.current_player
+    }
+
+    fn step(&mut self, action: Action) -> Result<(), &'static str> {
+        if action >= 9 {
+            return Err("Position out of bounds");
+        }
+        if self.board[action] != Cell::Empty {
+            return Err("Cell already occupied");
+        }
+        if self.is_terminal() {
+            return Err("Game already finished");
+        }
+
+        self.board[action] = Cell::Occupied(self.current_player);
+        self.update_result();
+        self.current_player = self.current_player.opponent();
         Ok(())
     }
 }
