@@ -1,5 +1,5 @@
 [package]
-name = "mcts2"
+name = "mcts"
 version = "0.1.0"
 edition = "2024"
 
