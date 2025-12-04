@@ -1,7 +1,3 @@
-use crate::tetromino::{
-    NUM_ROTATIONS, NUM_TETROMINOES, SIZE, TETROMINO_COLORS, TETROMINO_FILL_COLS,
-    TETROMINO_FILL_ROWS, TETROMINOES,
-};
 use once_cell::sync::OnceCell;
 use rand::{Rng, SeedableRng};
 use raylib::color::Color;
@@ -1086,12 +1082,12 @@ impl Tetris {
     }
 }
 
-pub const NUM_TETROMINOES: usize = 7;
-pub const NUM_ROTATIONS: usize = 4;
-pub const SIZE: usize = 4;
+const NUM_TETROMINOES: usize = 7;
+const NUM_ROTATIONS: usize = 4;
+const SIZE: usize = 4;
 
 #[allow(dead_code)]
-pub const TETROMINO_COLORS: [Color; 8] = [
+const TETROMINO_COLORS: [Color; 8] = [
     Color::new(255, 255, 0, 255), // Yellow
     Color::new(255, 255, 0, 255), // Yellow
     Color::new(0, 255, 255, 255), // Cyan
@@ -1102,7 +1098,7 @@ pub const TETROMINO_COLORS: [Color; 8] = [
     Color::new(0, 0, 255, 255),   // Blue
 ];
 
-pub const TETROMINOES: [[[[u8; SIZE]; SIZE]; NUM_ROTATIONS]; NUM_TETROMINOES] = [
+const TETROMINOES: [[[[u8; SIZE]; SIZE]; NUM_ROTATIONS]; NUM_TETROMINOES] = [
     [
         [[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
         [[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
@@ -1147,7 +1143,7 @@ pub const TETROMINOES: [[[[u8; SIZE]; SIZE]; NUM_ROTATIONS]; NUM_TETROMINOES] = 
     ],
 ];
 
-pub const TETROMINO_FILL_COLS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
+const TETROMINO_FILL_COLS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
     [2, 2, 2, 2],
     [1, 4, 1, 4],
     [2, 3, 2, 3],
@@ -1157,7 +1153,7 @@ pub const TETROMINO_FILL_COLS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
     [2, 3, 2, 3],
 ];
 
-pub const TETROMINO_FILL_ROWS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
+const TETROMINO_FILL_ROWS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
     [2, 2, 2, 2],
     [4, 1, 4, 1],
     [3, 2, 3, 2],
