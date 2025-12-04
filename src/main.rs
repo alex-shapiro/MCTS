@@ -3,14 +3,45 @@
 mod game;
 mod mcts;
 
-use game::{GameResult, Player};
+use argh::FromArgs;
+use game::{Game, GameResult, Player, connect4::Connect4, tictactoe::TicTacToe};
 use mcts::Mcts;
 use std::io::{self, Write};
 
-use crate::game::{Game, tictactoe::TicTacToe};
+#[derive(FromArgs)]
+/// Play games against an MCTS agent
+struct Args {
+    #[argh(subcommand)]
+    game: GameCommand,
+}
+
+#[derive(FromArgs)]
+#[argh(subcommand)]
+enum GameCommand {
+    TicTacToe(TicTacToeCmd),
+    Connect4(Connect4Cmd),
+}
+
+#[derive(FromArgs)]
+#[argh(subcommand, name = "tictactoe")]
+/// Play Tic-Tac-Toe
+struct TicTacToeCmd {}
+
+#[derive(FromArgs)]
+#[argh(subcommand, name = "connect4")]
+/// Play Connect 4
+struct Connect4Cmd {}
 
 fn main() {
-    let mut game = TicTacToe::default();
+    let args: Args = argh::from_env();
+
+    match args.game {
+        GameCommand::TicTacToe(_) => play_game(TicTacToe::default()),
+        GameCommand::Connect4(_) => play_game(Connect4::default()),
+    }
+}
+
+fn play_game<G: Game + std::fmt::Display>(mut game: G) {
     game.print_instructions();
 
     let mut agent = Mcts::new(10_000);
@@ -20,7 +51,9 @@ fn main() {
 
         match game.current_player() {
             Player::X => {
-                print!("Your move (0-8): ");
+                let actions = game.allowed_actions();
+                let max_action = actions.iter().max().unwrap_or(&0);
+                print!("Your move (0-{max_action}): ");
                 io::stdout().flush().unwrap();
 
                 let mut input = String::new();
@@ -31,7 +64,7 @@ fn main() {
                         println!("Invalid move: {e}");
                     }
                 } else {
-                    println!("Please enter a number 0-8");
+                    println!("Please enter a valid number");
                 }
             }
             Player::O => {
