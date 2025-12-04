@@ -3,25 +3,16 @@
 mod game;
 mod mcts;
 
-use game::{GameResult, Player, TicTacToe};
+use game::{GameResult, Player};
 use mcts::Mcts;
 use std::io::{self, Write};
 
-use crate::game::Game;
+use crate::game::{Game, tictactoe::TicTacToe};
 
 fn main() {
-    println!("Tic-Tac-Toe with MCTS Agent");
-    println!("============================");
-    println!("You are X, MCTS agent is O");
-    println!("Enter positions 0-8:");
-    println!("0 | 1 | 2");
-    println!("---------");
-    println!("3 | 4 | 5");
-    println!("---------");
-    println!("6 | 7 | 8");
-    println!();
-
     let mut game = TicTacToe::default();
+    game.print_instructions();
+
     let mut agent = Mcts::new(10_000);
 
     loop {
