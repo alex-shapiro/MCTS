@@ -78,26 +78,26 @@ impl Mcts {
         *self.nodes[node_idx]
             .children
             .iter()
-            .max_by(|&&a, &&b| {
-                let ucb_a = self.nodes[a].ucb1(parent_visits, exploration);
-                let ucb_b = self.nodes[b].ucb1(parent_visits, exploration);
-                ucb_a.partial_cmp(&ucb_b).unwrap()
-            })
+            .map(|n| (n, self.nodes[*n].ucb1(parent_visits, exploration)))
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .unwrap()
+            .0
     }
 
     fn expand(&mut self, node_idx: usize) -> usize {
-        if self.nodes[node_idx].is_terminal() {
+        let node = &mut self.nodes[node_idx];
+
+        if node.is_terminal() {
             return node_idx;
         }
 
-        if self.nodes[node_idx].untried_actions.is_empty() {
+        if node.untried_actions.is_empty() {
             return node_idx;
         }
 
-        let action = self.nodes[node_idx].untried_actions.pop().unwrap();
-        let mut new_state = self.nodes[node_idx].state.clone();
-        new_state.make_move(action).unwrap();
+        let action = node.untried_actions.pop().unwrap();
+        let mut new_state = node.state.clone();
+        new_state.make_move(action).unwrap(); // step the sim
 
         let new_node = Node::new(new_state, Some(node_idx), Some(action));
         let new_idx = self.nodes.len();
@@ -107,26 +107,28 @@ impl Mcts {
         new_idx
     }
 
-    fn simulate(&self, node_idx: usize) -> Option<GameResult> {
+    /// Simulate with a light playout: take random actions until the game ends
+    fn simulate(&self, node_idx: usize) -> GameResult {
         let mut state = self.nodes[node_idx].state.clone();
 
-        while !state.is_terminal() {
+        loop {
+            if let Some(result) = state.result() {
+                return result;
+            }
             let moves = state.legal_moves();
             let random_move = moves[fastrand::usize(..moves.len())];
             state.make_move(random_move).unwrap();
         }
-
-        state.result()
     }
 
-    fn backpropagate(&mut self, node_idx: usize, result: Option<GameResult>, root_player: Player) {
+    fn backpropagate(&mut self, node_idx: usize, result: GameResult, root_player: Player) {
         let mut current = Some(node_idx);
 
         while let Some(idx) = current {
             self.nodes[idx].visits += 1;
 
             let reward = match result {
-                Some(GameResult::Win(winner)) => {
+                GameResult::Win(winner) => {
                     let node_player = if idx == 0 {
                         root_player
                     } else {
@@ -136,8 +138,7 @@ impl Mcts {
                     };
                     if winner == node_player { 1.0 } else { 0.0 }
                 }
-                Some(GameResult::Draw) => 0.5,
-                None => 0.0,
+                GameResult::Draw => 0.5,
             };
 
             self.nodes[idx].wins += reward;
