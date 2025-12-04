@@ -4,6 +4,8 @@ use raylib::color::Color;
 use raylib::prelude::*;
 use std::thread;
 
+use crate::game::Game;
+
 const HALF_LINEWIDTH: i32 = 1;
 const SQUARE_SIZE: i32 = 32;
 
@@ -41,9 +43,7 @@ impl From<u8> for Action {
     }
 }
 
-#[allow(dead_code)]
 const NUM_ROWS: usize = 20;
-#[allow(dead_code)]
 const NUM_COLS: usize = 10;
 
 const MAX_TICKS: usize = 10000;
@@ -65,7 +65,7 @@ const REWARD_INVALID_ACTION: f32 = 0.0;
 const SCORE_COMBO: [i32; 5] = [0, 100, 300, 500, 1000];
 const REWARD_COMBO: [f32; 5] = [0.0, 0.1, 0.3, 0.5, 1.0];
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Log {
     pub perf: f32,
     pub score: f32,
@@ -104,6 +104,7 @@ impl std::ops::Add for Log {
     }
 }
 
+#[derive(Debug)]
 struct Client {
     total_cols: i32,
     total_rows: i32,
@@ -113,6 +114,7 @@ struct Client {
     thread: RaylibThread,
 }
 
+#[derive(Debug)]
 pub struct Tetris {
     #[allow(dead_code)]
     client: Option<Client>,
@@ -155,13 +157,13 @@ pub struct Tetris {
 }
 
 impl Tetris {
-    pub fn new(
-        n_rows: usize,
-        n_cols: usize,
-        use_deck_obs: bool,
-        n_noise_obs: usize,
-        n_init_garbage: usize,
-    ) -> Self {
+    pub fn new() -> Self {
+        let n_rows = NUM_ROWS;
+        let n_cols = NUM_COLS;
+        let n_noise_obs = 0;
+        let n_init_garbage = 0;
+        let use_deck_obs = false;
+
         let dim_obs =
             n_cols * n_rows + NUM_FLOAT_OBS + NUM_TETROMINOES * (NUM_PREVIEW + 2) + n_noise_obs;
         let mut tetris = Self {
@@ -1162,3 +1164,25 @@ const TETROMINO_FILL_ROWS: [[u8; NUM_ROTATIONS]; NUM_TETROMINOES] = [
     [3, 2, 3, 2],
     [3, 2, 3, 2],
 ];
+
+impl Game for Tetris {
+    fn print_instructions(&self) {
+        println!("Tetris with MCTS Agent");
+        println!("======================");
+        println!("Watch it go...");
+    }
+
+    fn result(&self) -> Option<super::GameResult> {}
+
+    fn allowed_actions(&self) -> Vec<super::Action> {
+        todo!()
+    }
+
+    fn current_player(&self) -> super::Player {
+        todo!()
+    }
+
+    fn step(&mut self, action: super::Action) -> Result<(), &'static str> {
+        todo!()
+    }
+}
