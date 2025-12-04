@@ -34,25 +34,12 @@ impl fmt::Display for Player {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Cell {
-    Empty,
-    Occupied(Player),
-}
-
-impl fmt::Display for Cell {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Cell::Empty => write!(f, "."),
-            Cell::Occupied(p) => write!(f, "{p}"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GameResult {
     Win(Player),
     Draw,
 }
+
+type Cell = Option<Player>;
 
 #[derive(Debug, Clone)]
 pub struct TicTacToe {
@@ -80,15 +67,15 @@ impl TicTacToe {
 
         for line in WIN_LINES {
             let cells: Vec<Cell> = line.iter().map(|&i| self.board[i]).collect();
-            if let Cell::Occupied(player) = cells[0]
-                && cells.iter().all(|&c| c == Cell::Occupied(player))
+            if let Some(player) = cells[0]
+                && cells.iter().all(|&c| c == Some(player))
             {
                 self.result = Some(GameResult::Win(player));
                 return;
             }
         }
 
-        if self.board.iter().all(|&c| c != Cell::Empty) {
+        if self.board.iter().all(Option::is_some) {
             self.result = Some(GameResult::Draw);
         }
     }
@@ -97,7 +84,7 @@ impl TicTacToe {
 impl Default for TicTacToe {
     fn default() -> Self {
         TicTacToe {
-            board: [Cell::Empty; 9],
+            board: [None; 9],
             current_player: Player::X,
             result: None,
         }
@@ -108,7 +95,12 @@ impl fmt::Display for TicTacToe {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for row in 0..3 {
             for col in 0..3 {
-                write!(f, "{}", self.board[row * 3 + col])?;
+                let cell = self.board[row * 3 + col];
+                if let Some(player) = cell {
+                    write!(f, "{player}")
+                } else {
+                    write!(f, ".")
+                }?;
                 if col < 2 {
                     write!(f, " ")?;
                 }
@@ -133,7 +125,7 @@ impl Game for TicTacToe {
         self.board
             .iter()
             .enumerate()
-            .filter(|(_, cell)| **cell == Cell::Empty)
+            .filter(|(_, cell)| cell.is_none())
             .map(|(i, _)| i)
             .collect()
     }
@@ -146,14 +138,14 @@ impl Game for TicTacToe {
         if action >= 9 {
             return Err("Position out of bounds");
         }
-        if self.board[action] != Cell::Empty {
+        if self.board[action].is_some() {
             return Err("Cell already occupied");
         }
         if self.is_terminal() {
             return Err("Game already finished");
         }
 
-        self.board[action] = Cell::Occupied(self.current_player);
+        self.board[action] = Some(self.current_player);
         self.update_result();
         self.current_player = self.current_player.opponent();
         Ok(())

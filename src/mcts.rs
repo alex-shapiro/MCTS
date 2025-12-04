@@ -1,73 +1,48 @@
-use crate::game::{Game, GameResult, Player, TicTacToe};
+use crate::game::{Action, Game, GameResult, Player};
 
-pub struct Mcts {
-    nodes: Vec<Node>,
-    iterations: u32,
-    exploration_constant: f64,
+pub struct Mcts<G> {
+    nodes: Vec<Node<G>>,
+    iters: u32,
 }
 
-impl Mcts {
-    pub fn new(iterations: u32, exploration_constant: f64) -> Self {
-        Mcts {
-            nodes: Vec::new(),
-            iterations,
-            exploration_constant,
+impl<G: Game> Mcts<G> {
+    pub fn new(iters: u32) -> Self {
+        Self {
+            nodes: vec![],
+            iters,
         }
     }
 
-    pub fn search(&mut self, state: &TicTacToe) -> Option<usize> {
+    pub fn search(&mut self, state: &G) -> Option<Action> {
         self.nodes.clear();
         self.nodes.push(Node::new(state.clone(), None, None));
-
-        let root_player = state.current_player();
-
-        for _ in 0..self.iterations {
-            let selected = self.select(0);
-            let expanded = self.expand(selected);
-            let result = self.simulate(expanded);
-            self.backpropagate(expanded, result, root_player);
+        for _ in 0..self.iters {
+            let node_idx = self.select();
+            let node_idx = self.expand(node_idx);
+            let game_result = self.simulate(node_idx);
+            self.backup(node_idx, game_result);
         }
-
-        self.best_action(0)
+        self.best_action()
     }
 
-    /// Select the first viable node
-    /// - terminal, OR
-    /// - not fully expanded; OR
-    /// - has no children
-    fn select(&self, node_idx: usize) -> usize {
-        let mut current = node_idx;
+    /// Walk the tree to find the first node that is either terminal or has unvisited actions.
+    /// If a given node is neither, walk to the child with highest UCB1 score.
+    fn select(&self) -> usize {
+        let mut idx = 0;
 
         loop {
-            let node = &self.nodes[current];
-            if node.is_terminal() {
-                break;
+            let node = &self.nodes[idx];
+
+            if node.is_terminal() || node.has_unvisited_actions() {
+                return idx;
             }
-            if !node.is_fully_expanded() {
-                break;
-            }
-            if node.children.is_empty() {
-                break;
-            }
-            current = self.best_child(current);
+
+            idx = self.best_child(idx);
         }
-
-        current
     }
 
-    fn best_child(&self, node_idx: usize) -> usize {
-        let parent_visits = self.nodes[node_idx].visits;
-        let exploration = self.exploration_constant;
-
-        *self.nodes[node_idx]
-            .children
-            .iter()
-            .map(|n| (n, self.nodes[*n].ucb1(parent_visits, exploration)))
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-            .unwrap()
-            .0
-    }
-
+    /// Expand a nonterminal node with unvisited actions.
+    /// If the node is terminal or has no unvisited actions, return the node itself.
     fn expand(&mut self, node_idx: usize) -> usize {
         let node = &mut self.nodes[node_idx];
 
@@ -75,113 +50,111 @@ impl Mcts {
             return node_idx;
         }
 
-        if node.untried_actions.is_empty() {
+        let Some(action) = node.unvisited_actions.pop() else {
             return node_idx;
-        }
+        };
 
-        let action = node.untried_actions.pop().unwrap();
-        let mut new_state = node.state.clone();
-        new_state.step(action).unwrap(); // step the sim
-
-        let new_node = Node::new(new_state, Some(node_idx), Some(action));
-        let new_idx = self.nodes.len();
-        self.nodes.push(new_node);
-        self.nodes[node_idx].children.push(new_idx);
-
-        new_idx
+        let mut state = node.state.clone();
+        state.step(action).unwrap();
+        let child_node = Node::new(state, Some(action), Some(node_idx));
+        let child_idx = self.nodes.len();
+        self.nodes.push(child_node);
+        self.nodes[node_idx].children.push(child_idx);
+        child_idx
     }
 
-    /// Simulate with a light playout: take random actions until the game ends
+    /// Simulate the rest of the game with random actions
     fn simulate(&self, node_idx: usize) -> GameResult {
-        let mut state = self.nodes[node_idx].state.clone();
-
+        let mut game = self.nodes[node_idx].state.clone();
         loop {
-            if let Some(result) = state.result() {
-                return result;
+            if let Some(game_result) = game.result() {
+                return game_result;
             }
-            let moves = state.allowed_actions();
-            let random_move = moves[fastrand::usize(..moves.len())];
-            state.step(random_move).unwrap();
+            let actions = game.allowed_actions();
+            let action = actions[fastrand::usize(0..actions.len())];
+            game.step(action).unwrap();
         }
     }
 
-    fn backpropagate(&mut self, node_idx: usize, result: GameResult, root_player: Player) {
+    /// Back up visits & rewards
+    fn backup(&mut self, node_idx: usize, game_result: GameResult) {
         let mut current = Some(node_idx);
-
         while let Some(idx) = current {
-            self.nodes[idx].visits += 1;
-            self.nodes[idx].wins += match result {
-                GameResult::Win(winner) => {
-                    let node_player = if idx == 0 {
-                        root_player
-                    } else {
-                        self.nodes[self.nodes[idx].parent.unwrap()]
-                            .state
-                            .current_player()
-                    };
-                    if winner == node_player { 1.0 } else { 0.0 }
-                }
+            let node = &mut self.nodes[idx];
+            node.visits += 1.0;
+            node.reward += match game_result {
+                GameResult::Win(player) => f64::from(player == node.actor()),
                 GameResult::Draw => 0.5,
             };
-
-            current = self.nodes[idx].parent;
+            current = node.parent;
         }
     }
 
-    fn best_action(&self, node_idx: usize) -> Option<usize> {
-        if self.nodes[node_idx].children.is_empty() {
-            return None;
-        }
-
-        let best_child_idx = *self.nodes[node_idx]
+    /// Select the "best" action by finding the root node child with the most visits.
+    /// As the number of MCTS iterations increases, this value approaches the optimal decision.
+    fn best_action(&self) -> Option<Action> {
+        self.nodes[0]
             .children
             .iter()
-            .max_by_key(|&&child_idx| self.nodes[child_idx].visits)
-            .unwrap();
+            .map(|idx| &self.nodes[*idx])
+            .max_by(|a, b| a.visits.partial_cmp(&b.visits).unwrap())
+            .unwrap()
+            .action
+    }
 
-        self.nodes[best_child_idx].action
+    /// Select the child node with the highest UCB1 score
+    fn best_child(&self, idx: usize) -> usize {
+        let node = &self.nodes[idx];
+        let visits = node.visits;
+        node.children
+            .iter()
+            .map(|idx| (*idx, self.nodes[*idx].ucb1(visits)))
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .unwrap()
+            .0
     }
 }
 
-struct Node {
-    state: TicTacToe,
+struct Node<G> {
+    state: G,
+    action: Option<Action>,
     parent: Option<usize>,
     children: Vec<usize>,
-    action: Option<usize>,
-    visits: u32,
-    wins: f64,
-    untried_actions: Vec<usize>,
+    visits: f64,
+    reward: f64,
+    unvisited_actions: Vec<Action>,
 }
 
-impl Node {
-    fn new(state: TicTacToe, parent: Option<usize>, action: Option<usize>) -> Self {
-        let untried_actions = state.allowed_actions();
+impl<G: Game> Node<G> {
+    fn new(state: G, action: Option<Action>, parent: Option<usize>) -> Self {
+        let unvisited_actions = state.allowed_actions();
         Node {
             state,
-            parent,
-            children: Vec::new(),
             action,
-            visits: 0,
-            wins: 0.0,
-            untried_actions,
+            parent,
+            children: vec![],
+            visits: 0.0,
+            reward: 0.0,
+            unvisited_actions,
         }
     }
 
-    fn is_fully_expanded(&self) -> bool {
-        self.untried_actions.is_empty()
+    /// Player responsible for the node action
+    fn actor(&self) -> Player {
+        self.state.current_player().opponent()
     }
 
     fn is_terminal(&self) -> bool {
-        self.state.is_terminal()
+        self.state.result().is_some()
     }
 
-    fn ucb1(&self, parent_visits: u32, exploration: f64) -> f64 {
-        if self.visits == 0 {
-            return f64::INFINITY;
-        }
-        let exploitation = self.wins / f64::from(self.visits);
-        let exploration_term =
-            exploration * (f64::from(parent_visits).ln() / f64::from(self.visits)).sqrt();
-        exploitation + exploration_term
+    fn has_unvisited_actions(&self) -> bool {
+        !self.unvisited_actions.is_empty()
+    }
+
+    fn ucb1(&self, parent_visits: f64) -> f64 {
+        let r_exploit = self.reward / self.visits;
+        let r_explore = (2.0 * parent_visits.ln() / self.visits).sqrt();
+        r_exploit + r_explore
     }
 }

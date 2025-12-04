@@ -1,10 +1,10 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 mod game;
-mod mcts2;
+mod mcts;
 
 use game::{GameResult, Player, TicTacToe};
-use mcts2::Mcts;
+use mcts::Mcts;
 use std::io::{self, Write};
 
 use crate::game::Game;
@@ -22,7 +22,7 @@ fn main() {
     println!();
 
     let mut game = TicTacToe::default();
-    let mut agent = Mcts::new(10_000, 2.0f64.sqrt());
+    let mut agent = Mcts::new(10_000);
 
     loop {
         println!("{game}\n");
