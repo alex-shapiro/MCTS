@@ -1,3 +1,4 @@
+pub mod connect4;
 pub mod tictactoe;
 
 use std::fmt::{self, Debug};
