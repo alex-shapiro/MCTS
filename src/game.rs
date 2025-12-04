@@ -1,5 +1,6 @@
 pub mod connect4;
 pub mod tictactoe;
+pub mod tetris;
 
 use std::fmt::{self, Debug};
 

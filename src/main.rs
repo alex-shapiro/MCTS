@@ -4,7 +4,7 @@ mod game;
 mod mcts;
 
 use argh::FromArgs;
-use game::{Game, GameResult, Player, connect4::Connect4, tictactoe::TicTacToe};
+use game::{connect4::Connect4, tictactoe::TicTacToe, Game, GameResult, Player};
 use mcts::Mcts;
 use std::io::{self, Write};
 
@@ -20,6 +20,7 @@ struct Args {
 enum GameCommand {
     TicTacToe(TicTacToeCmd),
     Connect4(Connect4Cmd),
+    Tetris(TetrisCmd),
 }
 
 #[derive(FromArgs)]
@@ -32,12 +33,18 @@ struct TicTacToeCmd {}
 /// Play Connect 4
 struct Connect4Cmd {}
 
+#[derive(FromArgs)]
+#[argh(subcommand, name = "tetris")]
+/// Play Connect 4
+struct TetrisCmd {}
+
 fn main() {
     let args: Args = argh::from_env();
 
     match args.game {
         GameCommand::TicTacToe(_) => play_game(TicTacToe::default()),
         GameCommand::Connect4(_) => play_game(Connect4::default()),
+        GameCommand::Tetris(_) => play_tetris(Tetris::default()),
     }
 }
 
