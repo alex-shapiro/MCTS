@@ -24,10 +24,11 @@ impl Connect4 {
         for row in 0..ROWS {
             for col in 0..COLS - 3 {
                 if let Some(player) = self.board[row][col]
-                    && (0..4).all(|i| self.board[row][col + i] == Some(player)) {
-                        self.result = Some(GameResult::Win(player));
-                        return;
-                    }
+                    && (0..4).all(|i| self.board[row][col + i] == Some(player))
+                {
+                    self.result = Some(GameResult::Win(player));
+                    return;
+                }
             }
         }
 
@@ -35,10 +36,11 @@ impl Connect4 {
         for row in 0..ROWS - 3 {
             for col in 0..COLS {
                 if let Some(player) = self.board[row][col]
-                    && (0..4).all(|i| self.board[row + i][col] == Some(player)) {
-                        self.result = Some(GameResult::Win(player));
-                        return;
-                    }
+                    && (0..4).all(|i| self.board[row + i][col] == Some(player))
+                {
+                    self.result = Some(GameResult::Win(player));
+                    return;
+                }
             }
         }
 
@@ -46,10 +48,11 @@ impl Connect4 {
         for row in 3..ROWS {
             for col in 0..COLS - 3 {
                 if let Some(player) = self.board[row][col]
-                    && (0..4).all(|i| self.board[row - i][col + i] == Some(player)) {
-                        self.result = Some(GameResult::Win(player));
-                        return;
-                    }
+                    && (0..4).all(|i| self.board[row - i][col + i] == Some(player))
+                {
+                    self.result = Some(GameResult::Win(player));
+                    return;
+                }
             }
         }
 
@@ -57,10 +60,11 @@ impl Connect4 {
         for row in 0..ROWS - 3 {
             for col in 0..COLS - 3 {
                 if let Some(player) = self.board[row][col]
-                    && (0..4).all(|i| self.board[row + i][col + i] == Some(player)) {
-                        self.result = Some(GameResult::Win(player));
-                        return;
-                    }
+                    && (0..4).all(|i| self.board[row + i][col + i] == Some(player))
+                {
+                    self.result = Some(GameResult::Win(player));
+                    return;
+                }
             }
         }
 
