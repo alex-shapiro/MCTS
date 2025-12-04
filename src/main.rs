@@ -1,11 +1,13 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 mod game;
-mod mcts;
+mod mcts2;
 
 use game::{GameResult, Player, TicTacToe};
-use mcts::MCTSAgent;
+use mcts2::Mcts;
 use std::io::{self, Write};
+
+use crate::game::Game;
 
 fn main() {
     println!("Tic-Tac-Toe with MCTS Agent");
@@ -19,8 +21,8 @@ fn main() {
     println!("6 | 7 | 8");
     println!();
 
-    let mut game = TicTacToe::new();
-    let mut agent = MCTSAgent::new(10000, 1.41);
+    let mut game = TicTacToe::default();
+    let mut agent = Mcts::new(10_000, 2.0f64.sqrt());
 
     loop {
         println!("{game}\n");
@@ -34,7 +36,7 @@ fn main() {
                 io::stdin().read_line(&mut input).unwrap();
 
                 if let Ok(pos) = input.trim().parse::<usize>() {
-                    if let Err(e) = game.make_move(pos) {
+                    if let Err(e) = game.step(pos) {
                         println!("Invalid move: {e}");
                     }
                 } else {
@@ -43,9 +45,9 @@ fn main() {
             }
             Player::O => {
                 println!("MCTS is thinking...");
-                if let Some(action) = agent.choose_move(&game) {
+                if let Some(action) = agent.search(&game) {
                     println!("MCTS plays: {action}");
-                    game.make_move(action).unwrap();
+                    game.step(action).unwrap();
                 }
             }
         }

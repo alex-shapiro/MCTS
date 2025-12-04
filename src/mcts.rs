@@ -1,43 +1,27 @@
-use crate::game::{GameResult, Player, TicTacToe};
+use crate::game::{Game, GameResult, Player, TicTacToe};
 
-pub struct MCTSAgent {
-    mcts: Mcts,
-    iterations: u32,
-}
-
-impl MCTSAgent {
-    pub fn new(iterations: u32, exploration_constant: f64) -> Self {
-        MCTSAgent {
-            mcts: Mcts::new(exploration_constant),
-            iterations,
-        }
-    }
-
-    pub fn choose_move(&mut self, state: &TicTacToe) -> Option<usize> {
-        self.mcts.search(state, self.iterations)
-    }
-}
-
-struct Mcts {
+pub struct Mcts {
     nodes: Vec<Node>,
+    iterations: u32,
     exploration_constant: f64,
 }
 
 impl Mcts {
-    fn new(exploration_constant: f64) -> Self {
+    pub fn new(iterations: u32, exploration_constant: f64) -> Self {
         Mcts {
             nodes: Vec::new(),
+            iterations,
             exploration_constant,
         }
     }
 
-    fn search(&mut self, state: &TicTacToe, iterations: u32) -> Option<usize> {
+    pub fn search(&mut self, state: &TicTacToe) -> Option<usize> {
         self.nodes.clear();
         self.nodes.push(Node::new(state.clone(), None, None));
 
         let root_player = state.current_player();
 
-        for _ in 0..iterations {
+        for _ in 0..self.iterations {
             let selected = self.select(0);
             let expanded = self.expand(selected);
             let result = self.simulate(expanded);
@@ -97,7 +81,7 @@ impl Mcts {
 
         let action = node.untried_actions.pop().unwrap();
         let mut new_state = node.state.clone();
-        new_state.make_move(action).unwrap(); // step the sim
+        new_state.step(action).unwrap(); // step the sim
 
         let new_node = Node::new(new_state, Some(node_idx), Some(action));
         let new_idx = self.nodes.len();
@@ -115,9 +99,9 @@ impl Mcts {
             if let Some(result) = state.result() {
                 return result;
             }
-            let moves = state.legal_moves();
+            let moves = state.allowed_actions();
             let random_move = moves[fastrand::usize(..moves.len())];
-            state.make_move(random_move).unwrap();
+            state.step(random_move).unwrap();
         }
     }
 
@@ -126,8 +110,7 @@ impl Mcts {
 
         while let Some(idx) = current {
             self.nodes[idx].visits += 1;
-
-            let reward = match result {
+            self.nodes[idx].wins += match result {
                 GameResult::Win(winner) => {
                     let node_player = if idx == 0 {
                         root_player
@@ -141,7 +124,6 @@ impl Mcts {
                 GameResult::Draw => 0.5,
             };
 
-            self.nodes[idx].wins += reward;
             current = self.nodes[idx].parent;
         }
     }
@@ -161,7 +143,6 @@ impl Mcts {
     }
 }
 
-#[derive(Clone)]
 struct Node {
     state: TicTacToe,
     parent: Option<usize>,
@@ -174,7 +155,7 @@ struct Node {
 
 impl Node {
     fn new(state: TicTacToe, parent: Option<usize>, action: Option<usize>) -> Self {
-        let untried_actions = state.legal_moves();
+        let untried_actions = state.allowed_actions();
         Node {
             state,
             parent,
