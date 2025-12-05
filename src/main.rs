@@ -90,9 +90,30 @@ fn play_game<G: Game + std::fmt::Display>(mut game: G) {
                 GameResult::Win(Player::X) => println!("You win!"),
                 GameResult::Win(Player::O) => println!("MCTS wins!"),
                 GameResult::Draw => println!("It's a draw!"),
+                GameResult::End(_) => eprintln!("GAME RESULT ERROR"),
             }
             println!("\nFinal board:\n{game}\n");
             break;
+        }
+    }
+}
+
+fn play_tetris(mut game: Tetris) {
+    game.print_instructions();
+
+    let mut agent = Mcts::new(10_000);
+    let mut client = game.render_client();
+
+    loop {
+        if let Some(action) = agent.search(&game) {
+            println!("MCTS plays: {action}");
+            Game::step(&mut game, action).unwrap();
+            game.render(&mut client);
+
+            if let Some(GameResult::End(result)) = game.result() {
+                println!("Final score: {result}");
+                return;
+            }
         }
     }
 }

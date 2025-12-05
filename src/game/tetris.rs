@@ -13,7 +13,6 @@ const SQUARE_SIZE: i32 = 32;
 static MAIN_THREAD_ID: OnceCell<thread::ThreadId> = OnceCell::new();
 const DECK_SIZE: usize = 2 * NUM_TETROMINOES; // To implement the 7-bag system
 const NUM_PREVIEW: usize = 2;
-const NUM_FLOAT_OBS: usize = 6;
 
 #[repr(u8)]
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,7 +46,6 @@ const NUM_ROWS: usize = 20;
 const NUM_COLS: usize = 10;
 
 const MAX_TICKS: usize = 10000;
-const PERSONAL_BEST: usize = 67890;
 const INITIAL_TICKS_PER_FALL: usize = 6; // how many ticks before the tetromino naturally falls down of one square
 
 const LINES_PER_LEVEL: usize = 10;
@@ -64,7 +62,7 @@ const SCORE_COMBO: [i32; 5] = [0, 100, 300, 500, 1000];
 const REWARD_COMBO: [f32; 5] = [0.0, 0.1, 0.3, 0.5, 1.0];
 
 #[derive(Debug)]
-struct Client {
+pub struct Client {
     total_cols: i32,
     total_rows: i32,
     ui_rows: i32,
