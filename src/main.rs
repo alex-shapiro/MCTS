@@ -4,9 +4,11 @@ mod game;
 mod mcts;
 
 use argh::FromArgs;
-use game::{connect4::Connect4, tictactoe::TicTacToe, Game, GameResult, Player};
+use game::{Game, GameResult, Player, connect4::Connect4, tictactoe::TicTacToe};
 use mcts::Mcts;
 use std::io::{self, Write};
+
+use crate::game::tetris::Tetris;
 
 #[derive(FromArgs)]
 /// Play games against an MCTS agent
@@ -44,7 +46,7 @@ fn main() {
     match args.game {
         GameCommand::TicTacToe(_) => play_game(TicTacToe::default()),
         GameCommand::Connect4(_) => play_game(Connect4::default()),
-        GameCommand::Tetris(_) => play_tetris(Tetris::default()),
+        GameCommand::Tetris(_) => play_tetris(Tetris::new()),
     }
 }
 

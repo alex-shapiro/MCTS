@@ -85,6 +85,7 @@ impl<G: Game> Mcts<G> {
             node.reward += match game_result {
                 GameResult::Win(player) => f64::from(player == node.actor()),
                 GameResult::Draw => 0.5,
+                GameResult::End(reward) => reward as f64,
             };
             current = node.parent;
         }

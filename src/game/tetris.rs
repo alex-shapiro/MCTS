@@ -4,7 +4,7 @@ use raylib::color::Color;
 use raylib::prelude::*;
 use std::thread;
 
-use crate::game::Game;
+use crate::game::{Game, GameResult, Player};
 
 const HALF_LINEWIDTH: i32 = 1;
 const SQUARE_SIZE: i32 = 32;
@@ -49,8 +49,6 @@ const NUM_COLS: usize = 10;
 const MAX_TICKS: usize = 10000;
 const PERSONAL_BEST: usize = 67890;
 const INITIAL_TICKS_PER_FALL: usize = 6; // how many ticks before the tetromino naturally falls down of one square
-const GARBAGE_KICKOFF_TICK: usize = 500;
-const INITIAL_TICKS_PER_GARBAGE: usize = 100;
 
 const LINES_PER_LEVEL: usize = 10;
 // Revisit scoring with level. See https://tetris.wiki/Scoring
@@ -65,45 +63,6 @@ const REWARD_INVALID_ACTION: f32 = 0.0;
 const SCORE_COMBO: [i32; 5] = [0, 100, 300, 500, 1000];
 const REWARD_COMBO: [f32; 5] = [0.0, 0.1, 0.3, 0.5, 1.0];
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Log {
-    pub perf: f32,
-    pub score: f32,
-    pub ep_length: f32,
-    pub ep_return: f32,
-    pub lines_deleted: f32,
-    pub avg_combo: f32,
-    pub atn_frac_soft_drop: f32,
-    pub atn_frac_hard_drop: f32,
-    pub atn_frac_rotate: f32,
-    pub atn_frac_hold: f32,
-    pub game_level: f32,
-    pub ticks_per_line: f32,
-    pub n: f32,
-}
-
-impl std::ops::Add for Log {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        Log {
-            perf: self.perf + other.perf,
-            score: self.score + other.score,
-            ep_length: self.ep_length + other.ep_length,
-            ep_return: self.ep_return + other.ep_return,
-            lines_deleted: self.lines_deleted + other.lines_deleted,
-            avg_combo: self.avg_combo + other.avg_combo,
-            atn_frac_soft_drop: self.atn_frac_soft_drop + other.atn_frac_soft_drop,
-            atn_frac_hard_drop: self.atn_frac_hard_drop + other.atn_frac_hard_drop,
-            atn_frac_rotate: self.atn_frac_rotate + other.atn_frac_rotate,
-            atn_frac_hold: self.atn_frac_hold + other.atn_frac_hold,
-            game_level: self.game_level + other.game_level,
-            ticks_per_line: self.ticks_per_line + other.ticks_per_line,
-            n: self.n + other.n,
-        }
-    }
-}
-
 #[derive(Debug)]
 struct Client {
     total_cols: i32,
@@ -114,28 +73,17 @@ struct Client {
     thread: RaylibThread,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tetris {
-    #[allow(dead_code)]
-    client: Option<Client>,
-    pub log: Log,
-    pub observations: Vec<f32>,
-    pub rewards: f32,
-    #[allow(dead_code)]
-    actions: Action,
-    pub terminals: bool,
+    rewards: f32,
+    is_terminal: bool,
     n_rows: usize,
     n_cols: usize,
-    use_deck_obs: bool,
-    n_noise_obs: usize,
-    n_init_garbage: usize,
-    grid: Vec<i32>,
+    grid: [i32; NUM_ROWS * NUM_COLS],
     rng: rand::rngs::SmallRng,
     tick: usize,
     tick_fall: usize,
     ticks_per_fall: usize,
-    tick_garbage: usize,
-    ticks_per_garbage: usize,
     score: usize,
     can_swap: bool,
     tetromino_deck: [usize; DECK_SIZE],
@@ -160,31 +108,17 @@ impl Tetris {
     pub fn new() -> Self {
         let n_rows = NUM_ROWS;
         let n_cols = NUM_COLS;
-        let n_noise_obs = 0;
-        let n_init_garbage = 0;
-        let use_deck_obs = false;
 
-        let dim_obs =
-            n_cols * n_rows + NUM_FLOAT_OBS + NUM_TETROMINOES * (NUM_PREVIEW + 2) + n_noise_obs;
         let mut tetris = Self {
-            client: None,
-            log: Log::default(),
-            observations: vec![0.0; dim_obs],
             rewards: 0.0,
-            actions: Action::default(),
-            terminals: false,
+            is_terminal: false,
             n_rows,
             n_cols,
-            use_deck_obs,
-            n_noise_obs,
-            n_init_garbage,
-            grid: vec![0; n_rows * n_cols],
+            grid: [0; NUM_ROWS * NUM_COLS],
             rng: rand::rngs::SmallRng::seed_from_u64(rand::rng().random()),
             tick: 0,
             tick_fall: 0,
             ticks_per_fall: INITIAL_TICKS_PER_FALL,
-            tick_garbage: 0,
-            ticks_per_garbage: INITIAL_TICKS_PER_GARBAGE,
             score: 0,
             can_swap: true,
             tetromino_deck: [0; DECK_SIZE],
@@ -206,88 +140,6 @@ impl Tetris {
         };
         tetris.reset();
         tetris
-    }
-
-    pub fn add_log(&mut self) {
-        let score = self.score as f32;
-        let tick = self.tick as f32;
-
-        self.log.score += score;
-        self.log.perf += score / (PERSONAL_BEST as f32);
-        self.log.ep_length += tick;
-        self.log.ep_return += self.ep_return;
-        self.log.lines_deleted += self.lines_deleted as f32;
-        self.log.avg_combo += if self.count_combos > 0 {
-            (self.lines_deleted as f32) / (self.count_combos as f32)
-        } else {
-            1.0
-        };
-        self.log.atn_frac_hard_drop += (self.atn_count_hard_drop as f32) / tick;
-        self.log.atn_frac_soft_drop += (self.atn_count_soft_drop as f32) / tick;
-        self.log.atn_frac_rotate += (self.atn_count_rotate as f32) / tick;
-        self.log.atn_frac_hold += (self.atn_count_hold as f32) / tick;
-        self.log.game_level += self.game_level as f32;
-        self.log.ticks_per_line += if self.lines_deleted > 0 {
-            tick / (self.lines_deleted as f32)
-        } else {
-            tick
-        };
-        self.log.n += 1.0;
-    }
-
-    #[allow(clippy::needless_range_loop)]
-    pub fn compute_observations(&mut self) {
-        // content of the grid: 0 for empty, 1 for placed blocks, 2 for the current tetromino
-        for i in 0..(self.n_cols * self.n_rows) {
-            self.observations[i] = if self.grid[i] != 0 { 1.0 } else { 0.0 };
-        }
-
-        for r in 0..SIZE {
-            for c in 0..SIZE {
-                if TETROMINOES[self.cur_tetromino][self.cur_tetromino_rot][r][c] == 1 {
-                    let idx =
-                        (self.cur_tetromino_row + r) * self.n_cols + c + self.cur_tetromino_col;
-                    self.observations[idx] = 2.0;
-                }
-            }
-        }
-
-        let mut offset = self.n_cols * self.n_rows;
-        self.observations[offset] = (self.tick as f32) / (MAX_TICKS as f32);
-        self.observations[offset + 1] = (self.tick_fall as f32) / (self.ticks_per_fall as f32);
-        self.observations[offset + 2] = (self.cur_tetromino_row as f32) / (self.n_rows as f32);
-        self.observations[offset + 3] = (self.cur_tetromino_col as f32) / (self.n_cols as f32);
-        self.observations[offset + 4] = self.cur_tetromino_rot as f32;
-        self.observations[offset + 5] = if self.can_swap { 1.0 } else { 0.0 };
-        offset += NUM_FLOAT_OBS;
-
-        // Zero out the one-hot encoded part of the observations for deck and hold.
-        let range_start = offset;
-        let range_end = offset + NUM_TETROMINOES * (NUM_PREVIEW + 2);
-        self.observations[range_start..range_end].fill(0.0);
-
-        if self.use_deck_obs {
-            // Deck, one hot encoded
-            for j in 0..(NUM_PREVIEW + 1) {
-                let tetromino_id = self.tetromino_deck[(self.cur_position_in_deck + j) % DECK_SIZE];
-                self.observations[offset + tetromino_id] = 1.0;
-                offset += NUM_TETROMINOES;
-            }
-
-            // Hold, one hot encoded
-            if let Some(held) = self.hold_tetromino {
-                self.observations[offset + held] = 1.0;
-            }
-            offset += NUM_TETROMINOES;
-        } else {
-            offset += NUM_TETROMINOES * (NUM_PREVIEW + 2);
-        }
-
-        // Turn off noise bits, one-by-one.
-        if self.n_noise_obs > 0 {
-            let noise_idx = self.rng.random_range(0..self.n_noise_obs);
-            self.observations[offset + noise_idx] = 0.0;
-        }
     }
 
     fn restore_grid(&mut self) {
@@ -502,49 +354,6 @@ impl Tetris {
         }
     }
 
-    fn add_garbage_lines(&mut self, num_lines: usize, num_holes: usize) {
-        // Check if adding garbage would cause an immediate game over
-        for r in 0..num_lines {
-            for c in 0..self.n_cols {
-                if self.grid[r * self.n_cols + c] != 0 {
-                    self.terminals = true; // Game over
-                    return;
-                }
-            }
-        }
-
-        // Shift the existing grid up by num_lines
-        for r in 0..(self.n_rows - num_lines) {
-            for c in 0..self.n_cols {
-                self.grid[r * self.n_cols + c] = self.grid[(r + num_lines) * self.n_cols + c];
-            }
-        }
-
-        // Add new garbage lines at the bottom
-        for r in (self.n_rows - num_lines)..self.n_rows {
-            // First, fill the entire row with garbage
-            for c in 0..self.n_cols {
-                let garbage_val = -(self.rng.random_range(0..NUM_TETROMINOES) as i32 + 1);
-                self.grid[r * self.n_cols + c] = garbage_val;
-            }
-
-            // Create holes by selecting distinct columns
-            // Use a fixed-size array since n_cols is typically 10
-            let mut cols = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-            // Shuffle column indices (Fisher-Yates)
-            for i in (1..self.n_cols).rev() {
-                let j = self.rng.random_range(0..=i);
-                cols.swap(i, j);
-            }
-            for &col in cols.iter().take(num_holes) {
-                self.grid[r * self.n_cols + col] = 0;
-            }
-        }
-
-        // Move the current piece up as well
-        self.cur_tetromino_row = self.cur_tetromino_row.saturating_sub(num_lines);
-    }
-
     pub fn reset(&mut self) {
         self.score = 0;
         self.hold_tetromino = None;
@@ -552,8 +361,6 @@ impl Tetris {
         self.game_level = 1;
         self.ticks_per_fall = INITIAL_TICKS_PER_FALL;
         self.tick_fall = 0;
-        self.ticks_per_garbage = INITIAL_TICKS_PER_GARBAGE;
-        self.tick_garbage = 0;
         self.can_swap = true;
 
         self.ep_return = 0.0;
@@ -566,18 +373,8 @@ impl Tetris {
         self.tetromino_counts.fill(0);
 
         self.restore_grid();
-        // This acts as a learning curriculum, exposing agents to garbage lines later
-        self.add_garbage_lines(self.n_init_garbage, 9);
-
-        // Noise obs effectively jitters the action.
-        // The agents will eventually learn to ignore these.
-        for i in 0..self.n_noise_obs {
-            self.observations[234 + i] = 1.0;
-        }
-
         self.initialize_deck();
         self.spawn_new_tetromino();
-        self.compute_observations();
     }
 
     #[allow(clippy::needless_range_loop)]
@@ -620,24 +417,20 @@ impl Tetris {
             self.game_level = 1 + self.lines_deleted / LINES_PER_LEVEL as u32;
             self.ticks_per_fall =
                 (INITIAL_TICKS_PER_FALL as i32 - self.game_level as i32 / 4).max(3) as usize;
-            self.ticks_per_garbage =
-                ((INITIAL_TICKS_PER_GARBAGE as f64 - 7.0 * (self.game_level as f64).sqrt()) as i32)
-                    .max(40) as usize;
         }
 
         if self.can_spawn_new_tetromino() {
             self.spawn_new_tetromino();
         } else {
-            self.terminals = true; // Game over
+            self.is_terminal = true; // Game over
         }
     }
 
     pub fn step(&mut self, action: Action) {
-        self.terminals = false;
+        self.is_terminal = false;
         self.rewards = 0.0;
         self.tick += 1;
         self.tick_fall += 1;
-        self.tick_garbage += 1;
 
         match action {
             Action::Left => {
@@ -726,21 +519,35 @@ impl Tetris {
             }
         }
 
-        if self.tick >= GARBAGE_KICKOFF_TICK && self.tick_garbage >= self.ticks_per_garbage {
-            self.tick_garbage = 0;
-            let num_holes = (self.game_level / 8).clamp(1, 5) as usize;
-            self.add_garbage_lines(1, num_holes);
-        }
-
-        if self.terminals || (self.tick >= MAX_TICKS) {
-            self.add_log();
+        if self.is_terminal || (self.tick >= MAX_TICKS) {
             self.reset();
         }
-
-        self.compute_observations();
     }
 
-    pub fn render(&mut self) {
+    /// Create a render client
+    pub fn render_client(&self) -> Client {
+        let ui_rows = 1;
+        let deck_rows = SIZE as i32;
+        let total_rows = 1 + ui_rows + 1 + deck_rows + 1 + self.n_rows as i32 + 1;
+        let total_cols = (1 + self.n_cols + 1).max(1 + 3 * NUM_PREVIEW) as i32;
+
+        let (rl, thread) = raylib::init()
+            .size(SQUARE_SIZE * total_cols, SQUARE_SIZE * total_rows)
+            .title("Tetris")
+            .build();
+
+        Client {
+            total_cols,
+            total_rows,
+            ui_rows,
+            deck_rows,
+            rl,
+            thread,
+        }
+    }
+
+    /// Render with the render client
+    pub fn render(&mut self, client: &mut Client) {
         // Ensure we're on the main thread
         let main_thread_id = MAIN_THREAD_ID.get_or_init(|| thread::current().id());
         assert_eq!(
@@ -748,30 +555,6 @@ impl Tetris {
             thread::current().id(),
             "Rendering must be called from the main thread"
         );
-
-        // Initialize client/window if needed
-        if self.client.is_none() {
-            let ui_rows = 1;
-            let deck_rows = SIZE as i32;
-            let total_rows = 1 + ui_rows + 1 + deck_rows + 1 + self.n_rows as i32 + 1;
-            let total_cols = (1 + self.n_cols + 1).max(1 + 3 * NUM_PREVIEW) as i32;
-
-            let (rl, thread) = raylib::init()
-                .size(SQUARE_SIZE * total_cols, SQUARE_SIZE * total_rows)
-                .title("Tetris")
-                .build();
-
-            self.client = Some(Client {
-                total_cols,
-                total_rows,
-                ui_rows,
-                deck_rows,
-                rl,
-                thread,
-            });
-        }
-
-        let client = self.client.as_mut().unwrap();
 
         // Check for window close or escape key
         if client.rl.window_should_close() || client.rl.is_key_down(KeyboardKey::KEY_ESCAPE) {
@@ -1172,17 +955,49 @@ impl Game for Tetris {
         println!("Watch it go...");
     }
 
-    fn result(&self) -> Option<super::GameResult> {}
+    fn current_reward(&self) -> f64 {
+        self.rewards as f64
+    }
+
+    fn result(&self) -> Option<GameResult> {
+        if self.is_terminal {
+            Some(GameResult::End(self.rewards as f64))
+        } else {
+            None
+        }
+    }
 
     fn allowed_actions(&self) -> Vec<super::Action> {
-        todo!()
+        let mut actions = Vec::with_capacity(7);
+        actions.push(Action::NoOp as usize);
+        if self.can_go_left() {
+            actions.push(Action::Left as usize);
+        }
+        if self.can_go_right() {
+            actions.push(Action::Right as usize);
+        }
+        if self.can_rotate() {
+            actions.push(Action::Rotate as usize);
+        }
+        if self.can_soft_drop() {
+            actions.push(Action::SoftDrop as usize);
+        }
+        if self.can_spawn_new_tetromino() {
+            actions.push(Action::HardDrop as usize);
+        }
+        if self.can_hold() {
+            actions.push(Action::Hold as usize);
+        }
+        actions
     }
 
     fn current_player(&self) -> super::Player {
-        todo!()
+        Player::X
     }
 
     fn step(&mut self, action: super::Action) -> Result<(), &'static str> {
-        todo!()
+        let action = Action::from(action as u8);
+        self.step(action);
+        Ok(())
     }
 }
