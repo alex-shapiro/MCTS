@@ -166,4 +166,8 @@ impl Game for Connect4 {
         self.current_player = self.current_player.opponent();
         Ok(())
     }
+
+    fn current_reward(&self) -> f64 {
+        0.0
+    }
 }

@@ -8,6 +8,8 @@ use game::{Game, GameResult, Player, connect4::Connect4, tictactoe::TicTacToe};
 use mcts::Mcts;
 use std::io::{self, Write};
 
+use crate::game::tetris::Tetris;
+
 #[derive(FromArgs)]
 /// Play games against an MCTS agent
 struct Args {
@@ -20,6 +22,7 @@ struct Args {
 enum GameCommand {
     TicTacToe(TicTacToeCmd),
     Connect4(Connect4Cmd),
+    Tetris(TetrisCmd),
 }
 
 #[derive(FromArgs)]
@@ -32,12 +35,18 @@ struct TicTacToeCmd {}
 /// Play Connect 4
 struct Connect4Cmd {}
 
+#[derive(FromArgs)]
+#[argh(subcommand, name = "tetris")]
+/// Play Connect 4
+struct TetrisCmd {}
+
 fn main() {
     let args: Args = argh::from_env();
 
     match args.game {
         GameCommand::TicTacToe(_) => play_game(TicTacToe::default()),
         GameCommand::Connect4(_) => play_game(Connect4::default()),
+        GameCommand::Tetris(_) => play_tetris(Tetris::new()),
     }
 }
 
@@ -81,8 +90,33 @@ fn play_game<G: Game + std::fmt::Display>(mut game: G) {
                 GameResult::Win(Player::X) => println!("You win!"),
                 GameResult::Win(Player::O) => println!("MCTS wins!"),
                 GameResult::Draw => println!("It's a draw!"),
+                GameResult::End(_) => eprintln!("GAME RESULT ERROR"),
             }
             println!("\nFinal board:\n{game}\n");
+            break;
+        }
+    }
+}
+
+fn play_tetris(mut game: Tetris) {
+    game.print_instructions();
+
+    let mut agent = Mcts::new(32_000);
+    let mut client = game.render_client();
+
+    loop {
+        if let Some(action) = agent.search(&game) {
+            println!(
+                "Agent selected: {:?}",
+                game::tetris::Action::from(action as u8)
+            );
+            Game::step(&mut game, action).unwrap();
+            game.render(&mut client);
+        } else {
+            println!("No action possible")
+        }
+        if let Some(GameResult::End(result)) = game.result() {
+            println!("Final score: {result}");
             break;
         }
     }

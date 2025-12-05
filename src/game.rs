@@ -1,4 +1,5 @@
 pub mod connect4;
+pub mod tetris;
 pub mod tictactoe;
 
 use std::fmt::{self, Debug};
@@ -8,6 +9,7 @@ pub type Action = usize;
 pub trait Game: Debug + Clone {
     fn print_instructions(&self);
     fn result(&self) -> Option<GameResult>;
+    fn current_reward(&self) -> f64;
     fn allowed_actions(&self) -> Vec<Action>;
     fn current_player(&self) -> Player;
     fn step(&mut self, action: Action) -> Result<(), &'static str>;
@@ -37,8 +39,9 @@ impl fmt::Display for Player {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum GameResult {
     Win(Player),
     Draw,
+    End(f64),
 }

@@ -17,10 +17,11 @@ impl<G: Game> Mcts<G> {
         self.nodes.clear();
         self.nodes.push(Node::new(state.clone(), None, None));
         for _ in 0..self.iters {
+            let initial_reward = state.current_reward();
             let node_idx = self.select();
             let node_idx = self.expand(node_idx);
             let game_result = self.simulate(node_idx);
-            self.backup(node_idx, game_result);
+            self.backup(node_idx, game_result, initial_reward);
         }
         self.best_action()
     }
@@ -77,7 +78,7 @@ impl<G: Game> Mcts<G> {
     }
 
     /// Back up visits & rewards
-    fn backup(&mut self, node_idx: usize, game_result: GameResult) {
+    fn backup(&mut self, node_idx: usize, game_result: GameResult, initial_reward: f64) {
         let mut current = Some(node_idx);
         while let Some(idx) = current {
             let node = &mut self.nodes[idx];
@@ -85,6 +86,7 @@ impl<G: Game> Mcts<G> {
             node.reward += match game_result {
                 GameResult::Win(player) => f64::from(player == node.actor()),
                 GameResult::Draw => 0.5,
+                GameResult::End(reward) => reward as f64 - initial_reward,
             };
             current = node.parent;
         }
@@ -96,7 +98,11 @@ impl<G: Game> Mcts<G> {
         self.nodes[0]
             .children
             .iter()
-            .map(|idx| &self.nodes[*idx])
+            .map(|idx| {
+                let a = &self.nodes[*idx];
+                println!("{} visits for {:?}", a.visits, a.action.unwrap());
+                a
+            })
             .max_by(|a, b| a.visits.partial_cmp(&b.visits).unwrap())
             .unwrap()
             .action
