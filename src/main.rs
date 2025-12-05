@@ -101,19 +101,23 @@ fn play_game<G: Game + std::fmt::Display>(mut game: G) {
 fn play_tetris(mut game: Tetris) {
     game.print_instructions();
 
-    let mut agent = Mcts::new(10_000);
+    let mut agent = Mcts::new(16_000);
     let mut client = game.render_client();
 
     loop {
         if let Some(action) = agent.search(&game) {
-            println!("MCTS plays: {action}");
+            println!(
+                "Agent selected: {:?}",
+                game::tetris::Action::from(action as u8)
+            );
             Game::step(&mut game, action).unwrap();
             game.render(&mut client);
-
-            if let Some(GameResult::End(result)) = game.result() {
-                println!("Final score: {result}");
-                return;
-            }
+        } else {
+            println!("No action possible")
+        }
+        if let Some(GameResult::End(result)) = game.result() {
+            println!("Final score: {result}");
+            break;
         }
     }
 }

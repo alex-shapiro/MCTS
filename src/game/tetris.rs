@@ -45,8 +45,7 @@ impl From<u8> for Action {
 const NUM_ROWS: usize = 20;
 const NUM_COLS: usize = 10;
 
-const MAX_TICKS: usize = 10000;
-const INITIAL_TICKS_PER_FALL: usize = 6; // how many ticks before the tetromino naturally falls down of one square
+const INITIAL_TICKS_PER_FALL: usize = 3; // how many ticks before the tetromino naturally falls down of one square
 
 const LINES_PER_LEVEL: usize = 10;
 // Revisit scoring with level. See https://tetris.wiki/Scoring
@@ -516,10 +515,6 @@ impl Tetris {
                 self.place_tetromino();
             }
         }
-
-        if self.is_terminal || (self.tick >= MAX_TICKS) {
-            self.reset();
-        }
     }
 
     /// Create a render client
@@ -954,12 +949,12 @@ impl Game for Tetris {
     }
 
     fn current_reward(&self) -> f64 {
-        self.rewards as f64
+        self.score as f64
     }
 
     fn result(&self) -> Option<GameResult> {
         if self.is_terminal {
-            Some(GameResult::End(self.rewards as f64))
+            Some(GameResult::End(self.score as f64))
         } else {
             None
         }
@@ -979,8 +974,6 @@ impl Game for Tetris {
         }
         if self.can_soft_drop() {
             actions.push(Action::SoftDrop as usize);
-        }
-        if self.can_spawn_new_tetromino() {
             actions.push(Action::HardDrop as usize);
         }
         if self.can_hold() {

@@ -98,7 +98,11 @@ impl<G: Game> Mcts<G> {
         self.nodes[0]
             .children
             .iter()
-            .map(|idx| &self.nodes[*idx])
+            .map(|idx| {
+                let a = &self.nodes[*idx];
+                println!("{} visits for {:?}", a.visits, a.action.unwrap());
+                a
+            })
             .max_by(|a, b| a.visits.partial_cmp(&b.visits).unwrap())
             .unwrap()
             .action
